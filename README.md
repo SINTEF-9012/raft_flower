@@ -1,6 +1,6 @@
-# Flower Example using TensorFlow/Keras
+# Flower Example using PyTorch
 
-This introductory example to Flower uses Keras but deep knowledge of Keras is not necessarily required to run the example. However, it will help you understanding how to adapt Flower to your use-cases.
+This introductory example to Flower uses PyTorch, but deep knowledge of PyTorch is not necessarily required to run the example. However, it will help you understand how to adapt Flower to your use case.
 Running this example in itself is quite easy.
 
 ## Project Setup
@@ -8,10 +8,10 @@ Running this example in itself is quite easy.
 Start by cloning the example project. We prepared a single-line command that you can copy into your shell which will checkout the example for you:
 
 ```shell
-git clone --depth=1 https://github.com/adap/flower.git && mv flower/examples/quickstart-tensorflow . && rm -rf flower && cd quickstart-tensorflow
+git clone --depth=1 https://github.com/adap/flower.git && mv flower/examples/quickstart-pytorch . && rm -rf flower && cd quickstart-pytorch
 ```
 
-This will create a new directory called `quickstart-tensorflow` containing the following files:
+This will create a new directory called `quickstart-pytorch` containing the following files:
 
 ```shell
 -- pyproject.toml
@@ -23,7 +23,7 @@ This will create a new directory called `quickstart-tensorflow` containing the f
 
 ### Installing Dependencies
 
-Project dependencies (such as `tensorflow` and `flwr`) are defined in `pyproject.toml` and `requirements.txt`. We recommend [Poetry](https://python-poetry.org/docs/) to install those dependencies and manage your virtual environment ([Poetry installation](https://python-poetry.org/docs/#installation)) or [pip](https://pip.pypa.io/en/latest/development/), but feel free to use a different way of installing dependencies and managing virtual environments if you have other preferences.
+Project dependencies (such as `torch` and `flwr`) are defined in `pyproject.toml` and `requirements.txt`. We recommend [Poetry](https://python-poetry.org/docs/) to install those dependencies and manage your virtual environment ([Poetry installation](https://python-poetry.org/docs/#installation)) or [pip](https://pip.pypa.io/en/latest/development/), but feel free to use a different way of installing dependencies and managing virtual environments if you have other preferences.
 
 #### Poetry
 
@@ -48,26 +48,26 @@ Write the command below in your terminal to install the dependencies according t
 pip install -r requirements.txt
 ```
 
-## Run Federated Learning with TensorFlow/Keras and Flower
+## Run Federated Learning with PyTorch and Flower
 
 Afterwards you are ready to start the Flower server as well as the clients. You can simply start the server in a terminal as follows:
 
 ```shell
-poetry run python3 server.py
+python3 server.py
 ```
 
-Now you are ready to start the Flower clients which will participate in the learning. To do so simply open two more terminals and run the following command in each:
+Now you are ready to start the Flower clients which will participate in the learning. To do so simply open two more terminal windows and run the following commands.
+
+Start client 1 in the first terminal:
 
 ```shell
-poetry run python3 client.py
+python3 client.py
 ```
 
-Alternatively you can run all of it in one shell as follows:
+Start client 2 in the second terminal:
 
 ```shell
-poetry run python3 server.py &
-poetry run python3 client.py &
-poetry run python3 client.py
+python3 client.py
 ```
 
-You will see that Keras is starting a federated training. Have a look to the [Flower Quickstarter documentation](https://flower.dev/docs/quickstart-tensorflow.html) for a detailed explanation. You can add `steps_per_epoch=3` to `model.fit()` if you just want to evaluate that everything works without having to wait for the client-side training to finish (this will save you a lot of time during development).
+You will see that PyTorch is starting a federated training. Look at the [code](https://github.com/adap/flower/tree/main/examples/quickstart-pytorch) for a detailed explanation.
