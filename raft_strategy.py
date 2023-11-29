@@ -163,16 +163,17 @@ class RaftStrategy(Strategy):
 
         ########################################
 
-        if (initial_parameters):
-            i = 0
-            for tensor in initial_parameters.tensors:
-                print("initialize_parameters_tensor" + str(i), objsize.get_deep_size(tensor))
-                self.replicated_state.set("initialize_parameters_tensor" + str(i), tensor, sync=True)
-                i = i + 1
-            print("initialize_parameters_tensor_type", initial_parameters.tensor_type)        
-            self.replicated_state.set("initialize_parameters_tensor_type", initial_parameters.tensor_type, sync=True)
-            print("initialize_parameters_tensor_length", len(initial_parameters.tensors))
-            self.replicated_state.set("initialize_parameters_tensor_length", len(initial_parameters.tensors), sync=True)
+        #TODO: uncomment this code if you also need to store and replicate the intial parameters
+        #if (initial_parameters):
+        #    i = 0
+        #    for tensor in initial_parameters.tensors:
+        #        print("initialize_parameters_tensor" + str(i), objsize.get_deep_size(tensor))
+        #        self.replicated_state.set("initialize_parameters_tensor" + str(i), tensor, sync=True)
+        #        i = i + 1
+        #    print("initialize_parameters_tensor_type", initial_parameters.tensor_type)        
+        #    self.replicated_state.set("initialize_parameters_tensor_type", initial_parameters.tensor_type, sync=True)
+        #    print("initialize_parameters_tensor_length", len(initial_parameters.tensors))
+        #    self.replicated_state.set("initialize_parameters_tensor_length", len(initial_parameters.tensors), sync=True)
 
         ########################################
 
@@ -271,17 +272,18 @@ class RaftStrategy(Strategy):
 
         ########################################
 
-        i = 0
-        for tensor in parameters.tensors:
-            print("configure_evaluate_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
-            self.replicated_state.set("configure_evaluate_tensor" + str(i), tensor, sync=True)
-            i = i + 1        
-        print("configure_evaluate_tensor_type", parameters.tensor_type)        
-        self.replicated_state.set("configure_evaluate_tensor_type", parameters.tensor_type, sync=True)        
-        print("configure_evaluate_tensor_length", len(parameters.tensors))
-        self.replicated_state.set("configure_evaluate_tensor_length", len(parameters.tensors), sync=True)
-        print("configure_evaluate_round", server_round)
-        self.replicated_state.set("configure_evaluate_round", server_round, sync=True)
+        #TODO: uncomment this code if you also need to store and replicate the evaluation parameters
+        #i = 0
+        #for tensor in parameters.tensors:
+        #    print("configure_evaluate_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
+        #    self.replicated_state.set("configure_evaluate_tensor" + str(i), tensor, sync=True)
+        #    i = i + 1        
+        #print("configure_evaluate_tensor_type", parameters.tensor_type)        
+        #self.replicated_state.set("configure_evaluate_tensor_type", parameters.tensor_type, sync=True)        
+        #print("configure_evaluate_tensor_length", len(parameters.tensors))
+        #self.replicated_state.set("configure_evaluate_tensor_length", len(parameters.tensors), sync=True)
+        #print("configure_evaluate_round", server_round)
+        #self.replicated_state.set("configure_evaluate_round", server_round, sync=True)
 
         ########################################
 
