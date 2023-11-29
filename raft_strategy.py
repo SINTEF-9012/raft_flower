@@ -232,15 +232,16 @@ class RaftStrategy(Strategy):
 
         i = 0
         for tensor in parameters.tensors:
-            print("configure_fit_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
+            ##print("configure_fit_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
             self.replicated_state.set("configure_fit_tensor" + str(i), tensor, sync=True)
             i = i + 1        
-        print("configure_fit_tensor_type", parameters.tensor_type)        
+        ##print("configure_fit_tensor_type", parameters.tensor_type)        
         self.replicated_state.set("configure_fit_tensor_type", parameters.tensor_type, sync=True)        
-        print("configure_fit_tensor_length", len(parameters.tensors))
+        ##print("configure_fit_tensor_length", len(parameters.tensors))
         self.replicated_state.set("configure_fit_tensor_length", len(parameters.tensors), sync=True)
-        print("configure_fit_round", server_round)
+        ##print("configure_fit_round", server_round)
         self.replicated_state.set("configure_fit_round", server_round, sync=True)
+        print("Configuration parameters successfully saved an replicated!", "Starting next round: " + str(server_round))
 
         ########################################
 
