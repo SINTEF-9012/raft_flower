@@ -78,8 +78,7 @@ class RaftStrategy(Strategy):
         initial_parameters: Optional[Parameters] = None,
         fit_metrics_aggregation_fn: Optional[MetricsAggregationFn] = None,
         evaluate_metrics_aggregation_fn: Optional[MetricsAggregationFn] = None,
-        replicated_state: Optional[ReplDict] = None,
-        sync_obj: Optional[SyncObj] = None,
+        replicated_state: Optional[ReplDict] = None
     ) -> None:
         """Federated Averaging strategy.
 
@@ -139,7 +138,6 @@ class RaftStrategy(Strategy):
         self.fit_metrics_aggregation_fn = fit_metrics_aggregation_fn
         self.evaluate_metrics_aggregation_fn = evaluate_metrics_aggregation_fn
         self.replicated_state = replicated_state
-        self.sync_obj = sync_obj
 
     def __repr__(self) -> str:
         """Compute a string representation of the strategy."""
@@ -168,20 +166,11 @@ class RaftStrategy(Strategy):
         if (initial_parameters):
             i = 0
             for tensor in initial_parameters.tensors:
-                while not self.sync_obj.isReady():
-                    print("sync_obj not ready")
-                    time.sleep(0.1)
                 print("initialize_parameters_tensor" + str(i), objsize.get_deep_size(tensor))
                 self.replicated_state.set("initialize_parameters_tensor" + str(i), tensor, sync=True)
                 i = i + 1
-            while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
             print("initialize_parameters_tensor_type", initial_parameters.tensor_type)        
             self.replicated_state.set("initialize_parameters_tensor_type", initial_parameters.tensor_type, sync=True)
-            while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
             print("initialize_parameters_tensor_length", len(initial_parameters.tensors))
             self.replicated_state.set("initialize_parameters_tensor_length", len(initial_parameters.tensors), sync=True)
 
@@ -206,28 +195,13 @@ class RaftStrategy(Strategy):
 
         i = 0
         for tensor in parameters.tensors:
-            while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
             print("evaluate_tensor" + str(i), objsize.get_deep_size(tensor))
             self.replicated_state.set("evaluate_tensor" + str(i), tensor, sync=True)
-            i = i + 1
-        
-        while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
+            i = i + 1        
         print("evaluate_tensor_type", parameters.tensor_type)        
-        self.replicated_state.set("evaluate_tensor_type", parameters.tensor_type, sync=True)
-        
-        while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
+        self.replicated_state.set("evaluate_tensor_type", parameters.tensor_type, sync=True)        
         print("evaluate_tensor_length", len(parameters.tensors))
         self.replicated_state.set("evaluate_tensor_length", len(parameters.tensors), sync=True)
-
-        while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
         print("evaluate_round", server_round)
         self.replicated_state.set("evaluate_round", server_round, sync=True)
 
@@ -257,28 +231,13 @@ class RaftStrategy(Strategy):
 
         i = 0
         for tensor in parameters.tensors:
-            while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
             print("configure_fit_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
             self.replicated_state.set("configure_fit_tensor" + str(i), tensor, sync=True)
-            i = i + 1
-        
-        while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
+            i = i + 1        
         print("configure_fit_tensor_type", parameters.tensor_type)        
-        self.replicated_state.set("configure_fit_tensor_type", parameters.tensor_type, sync=True)
-        
-        while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
+        self.replicated_state.set("configure_fit_tensor_type", parameters.tensor_type, sync=True)        
         print("configure_fit_tensor_length", len(parameters.tensors))
         self.replicated_state.set("configure_fit_tensor_length", len(parameters.tensors), sync=True)
-
-        while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
         print("configure_fit_round", server_round)
         self.replicated_state.set("configure_fit_round", server_round, sync=True)
 
@@ -314,28 +273,13 @@ class RaftStrategy(Strategy):
 
         i = 0
         for tensor in parameters.tensors:
-            while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
             print("configure_evaluate_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
             self.replicated_state.set("configure_evaluate_tensor" + str(i), tensor, sync=True)
-            i = i + 1
-        
-        while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
+            i = i + 1        
         print("configure_evaluate_tensor_type", parameters.tensor_type)        
-        self.replicated_state.set("configure_evaluate_tensor_type", parameters.tensor_type, sync=True)
-        
-        while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
+        self.replicated_state.set("configure_evaluate_tensor_type", parameters.tensor_type, sync=True)        
         print("configure_evaluate_tensor_length", len(parameters.tensors))
         self.replicated_state.set("configure_evaluate_tensor_length", len(parameters.tensors), sync=True)
-
-        while not self.sync_obj.isReady():
-                print("sync_obj not ready")
-                time.sleep(0.1)
         print("configure_evaluate_round", server_round)
         self.replicated_state.set("configure_evaluate_round", server_round, sync=True)
 
@@ -371,12 +315,6 @@ class RaftStrategy(Strategy):
             metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
         elif server_round == 1:  # Only log this warning once
             log(WARNING, "No fit_metrics_aggregation_fn provided")
-
-
-        ########################################
-        #self.replicated_state.set('server_round_aggregate_fit', server_round, sync=False)        
-        ########################################
-
         return parameters_aggregated, metrics_aggregated
 
     def aggregate_evaluate(
@@ -407,9 +345,4 @@ class RaftStrategy(Strategy):
             metrics_aggregated = self.evaluate_metrics_aggregation_fn(eval_metrics)
         elif server_round == 1:  # Only log this warning once
             log(WARNING, "No evaluate_metrics_aggregation_fn provided")
-
-        ########################################
-        #self.replicated_state.set('server_round_aggregate_evaluate', server_round, sync=False)        
-        ########################################
-
         return loss_aggregated, metrics_aggregated
