@@ -139,7 +139,7 @@ if __name__ == '__main__':
     
     ##check if this is the very first launch or a re-start (i.e. num_rounds has already been defined)
     if not replicated_state.get('num_rounds', None):
-        num_rounds = 5
+        num_rounds = 3
         replicated_state.set('num_rounds', num_rounds, sync=True)
 
     while True:    
@@ -148,7 +148,7 @@ if __name__ == '__main__':
             print("I am the new leader, so I am starting the FL server")
             
             ## restore the number of remaining rounds
-            rounds_left = replicated_state.get('num_rounds', 0) - replicated_state.get('configure_fit_round', 0)
+            rounds_left = replicated_state.get('num_rounds', 0) - max(0, (replicated_state.get('configure_fit_round', 0) - 1)) # this is needed because by default we write into the replicated state the current round, which is -1 lower the number of completed rounds 
             print("Remaining rounds:", rounds_left)
             
             ## restore the latest parameters (if any) and make them initial parameters for the re-start
