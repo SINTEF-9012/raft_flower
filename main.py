@@ -160,7 +160,7 @@ if __name__ == '__main__':
             print("Previously stored parameters", initial_parameters.__class__)
 
             # Define strategy
-            strategy = RaftStrategy(initial_parameters=initial_parameters, evaluate_metrics_aggregation_fn=weighted_average, replicated_state=replicated_state, sync_obj=sync_obj, min_fit_clients=4, min_evaluate_clients=4, min_available_clients=4)
+            strategy = RaftStrategy(initial_parameters=initial_parameters, evaluate_metrics_aggregation_fn=weighted_average, replicated_state=replicated_state, sync_obj=sync_obj, min_fit_clients=3, min_evaluate_clients=3, min_available_clients=3)
 
             # Start Flower server
             fl.server.start_server(
