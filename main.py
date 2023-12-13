@@ -139,10 +139,13 @@ if __name__ == '__main__':
     
     ##check if this is the very first launch or a re-start (i.e. num_rounds has already been defined)
     if not replicated_state.get('num_rounds', None):
-        num_rounds = 3
+        num_rounds = 1
         replicated_state.set('num_rounds', num_rounds, sync=True)
 
-    while True:    
+    while True:
+        print(sync_obj.isReady())
+        for key in replicated_state.keys():
+            print(key + " - " + str(replicated_state.get(key, None).__class__))
         time.sleep(3)     
         if sync_obj._isLeader():            
             print("I am the new leader, so I am starting the FL server")
@@ -179,3 +182,7 @@ if __name__ == '__main__':
                 break
             except:
                 print("Error: server disconnected. Initiating re-start...")
+    
+    print(sync_obj.isReady())
+    for key in replicated_state.keys():
+        print(key + " - " + str(replicated_state.get(key, None).__class__))
