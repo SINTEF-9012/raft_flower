@@ -241,7 +241,7 @@ class RaftStrategy(Strategy):
         self.replicated_state.set("configure_fit_tensor_length", len(parameters.tensors), sync=True)
         ##print("configure_fit_round", server_round)
         self.replicated_state.set("configure_fit_round", server_round, sync=True)
-        print("Configuration parameters successfully saved an replicated!", "Starting next round: " + str(server_round))
+        print("Fit parameters successfully saved an replicated!", "Starting next round: " + str(server_round))
 
         ########################################
 
@@ -274,17 +274,18 @@ class RaftStrategy(Strategy):
         ########################################
 
         #TODO: uncomment this code if you also need to store and replicate the evaluation parameters
-        #i = 0
-        #for tensor in parameters.tensors:
-        #    print("configure_evaluate_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
-        #    self.replicated_state.set("configure_evaluate_tensor" + str(i), tensor, sync=True)
-        #    i = i + 1        
+        i = 0
+        for tensor in parameters.tensors:
+            print("configure_evaluate_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
+            self.replicated_state.set("configure_evaluate_tensor" + str(i), tensor, sync=True)
+            i = i + 1        
         #print("configure_evaluate_tensor_type", parameters.tensor_type)        
-        #self.replicated_state.set("configure_evaluate_tensor_type", parameters.tensor_type, sync=True)        
+        self.replicated_state.set("configure_evaluate_tensor_type", parameters.tensor_type, sync=True)        
         #print("configure_evaluate_tensor_length", len(parameters.tensors))
-        #self.replicated_state.set("configure_evaluate_tensor_length", len(parameters.tensors), sync=True)
+        self.replicated_state.set("configure_evaluate_tensor_length", len(parameters.tensors), sync=True)
         #print("configure_evaluate_round", server_round)
-        #self.replicated_state.set("configure_evaluate_round", server_round, sync=True)
+        self.replicated_state.set("configure_evaluate_round", server_round, sync=True)
+        print("Evaluate parameters successfully saved an replicated!", "Starting next round: " + str(server_round))
 
         ########################################
 
