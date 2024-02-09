@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Federated Averaging (FedAvg) [McMahan et al., 2016] strategy.
+"""This is a Raft-enhanced extension to Federated Averaging (FedAvg) strategy described in [McMahan et al., 2016].
 
 Paper: arxiv.org/abs/1602.05629
 """
