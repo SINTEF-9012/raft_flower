@@ -1,7 +1,8 @@
 flwr>=1.0, <2.0
-torch==1.13.1
-torchvision==0.14.1
-tqdm==4.65.0
+flwr_datasets
+torch
+torchvision
+tqdm
 pysyncobj
 objsize
-
+p2pnetwork

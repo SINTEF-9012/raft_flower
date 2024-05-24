@@ -2,7 +2,7 @@ from typing import List, Tuple
 
 import flwr as fl
 from flwr.common import Metrics
-from raft_strategy import RaftStrategy
+from la_strategy import LatencyAwareStrategy
 from pysyncobj import SyncObj, SyncObjConf
 from pysyncobj.batteries import ReplDict
 import time, sys
@@ -17,6 +17,9 @@ from tqdm import tqdm
 import warnings
 from collections import OrderedDict
 
+from tcppinglib import tcpping
+import statistics
+
 from flwr.common import Parameters
 import objsize
 
@@ -26,7 +29,6 @@ import objsize
 
 warnings.filterwarnings("ignore", category=UserWarning)
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 class Net(nn.Module):
     """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
@@ -94,8 +96,9 @@ trainloader, testloader = load_data()
 # Define Flower client
 class FlowerClient(fl.client.NumPyClient):
 
-    def __init__(self, replicated_state):
+    def __init__(self, replicated_state, nodes):
         super().__init__()
+        self.nodes = nodes
         self.replicated_state = replicated_state
 
     def get_parameters(self, config):
@@ -124,12 +127,31 @@ class FlowerClient(fl.client.NumPyClient):
 
         ########################################
 
+        latency = self.get_latency(self.nodes)
+        print("My mean latency is: ", latency)
+        self.replicated_state.set(selfAddr + "_latency", statistics.mean(latency), sync=True)
+
+        ########################################
+
         return self.get_parameters(config={}), len(trainloader.dataset), {}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
         loss, accuracy = test(net, testloader)
         return loss, len(testloader.dataset), {"accuracy": accuracy}
+    
+    # Define latency measuring function
+    def get_latency(self, nodes):
+        latency=[]
+        for node in nodes:
+            print("Measuring latency towards: " + node)
+            host=node.split(':')[0]
+            port=int(node.split(':')[1])
+            ping = tcpping(host, port=port, interval=1.0)
+            ##print(host.avg_rtt)
+            latency.append(ping.avg_rtt)
+        return latency
+        
 
 # Define metric aggregation function
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
@@ -184,7 +206,7 @@ if __name__ == '__main__':
             print("Previously stored parameters", initial_parameters.__class__)
 
             # Define strategy
-            strategy = RaftStrategy(initial_parameters=initial_parameters, evaluate_metrics_aggregation_fn=weighted_average, replicated_state=replicated_state, min_fit_clients=1, min_evaluate_clients=1, min_available_clients=1)
+            strategy = LatencyAwareStrategy(initial_parameters=initial_parameters, evaluate_metrics_aggregation_fn=weighted_average, replicated_state=replicated_state, min_fit_clients=1, min_evaluate_clients=1, min_available_clients=1)
 
             # Start Flower server
             fl.server.start_server(
@@ -199,7 +221,7 @@ if __name__ == '__main__':
             ##TODO: check if sync_obj is ready()
             print("I am a worker, so I will be doing my local training and send the updates to: ", sync_obj._getLeader().address)
             try:
-                fl.client.start_numpy_client(server_address=sync_obj._getLeader().host + ":8080", client=FlowerClient(replicated_state=replicated_state))
+                fl.client.start_numpy_client(server_address=sync_obj._getLeader().host + ":8080", client=FlowerClient(replicated_state=replicated_state, nodes=partners))
                 break
             except:
                 print("Error: server disconnected. Initiating re-start...")

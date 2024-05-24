@@ -54,7 +54,7 @@ Setting `min_available_clients` lower than `min_fit_clients` or
 connected to the server. `min_available_clients` must be set to a value larger
 than or equal to the values of `min_fit_clients` and `min_evaluate_clients`.
 """
-class RaftStrategy(Strategy):
+class LatencyAwareStrategy(Strategy):
     """Configurable Raft strategy implementation."""
 
     # pylint: disable=too-many-arguments,too-many-instance-attributes, line-too-long
@@ -241,7 +241,7 @@ class RaftStrategy(Strategy):
         self.replicated_state.set("configure_fit_tensor_length", len(parameters.tensors), sync=True)
         ##print("configure_fit_round", server_round)
         self.replicated_state.set("configure_fit_round", server_round, sync=True)
-        print("Fit parameters successfully saved an replicated!", "Starting next round: " + str(server_round))
+        print("Fit parameters successfully saved and replicated!", "Starting next round: " + str(server_round))
 
         ########################################
 
@@ -285,7 +285,7 @@ class RaftStrategy(Strategy):
         self.replicated_state.set("configure_evaluate_tensor_length", len(parameters.tensors), sync=True)
         #print("configure_evaluate_round", server_round)
         self.replicated_state.set("configure_evaluate_round", server_round, sync=True)
-        print("Evaluate parameters successfully saved an replicated!", "Starting next round: " + str(server_round))
+        print("Evaluate parameters successfully saved and replicated!", "Starting next round: " + str(server_round))
 
         ########################################
 
@@ -325,7 +325,7 @@ class RaftStrategy(Strategy):
         self.replicated_state.set("aggregate_fit_tensor_length", len(parameters_aggregated.tensors), sync=True)
         #print("configure_evaluate_round", server_round)
         self.replicated_state.set("aggregate_fit_round", server_round, sync=True)
-        print("Evaluate parameters successfully saved an replicated!", "Starting next round: " + str(server_round))
+        print("Evaluate parameters successfully saved and replicated!", "Starting next round: " + str(server_round))
 
         ########################################
 
