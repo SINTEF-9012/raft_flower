@@ -18,6 +18,9 @@ import warnings
 from collections import OrderedDict
 
 from tcppinglib import tcpping
+import asyncio
+from threading import *
+from tcppinglib import async_tcpping
 import statistics
 
 from flwr.common import Parameters
@@ -127,9 +130,9 @@ class FlowerClient(fl.client.NumPyClient):
 
         ########################################
 
-        latency = self.get_latency(self.nodes)
-        print("My mean latency is: ", latency)
-        self.replicated_state.set(selfAddr + "_latency", statistics.mean(latency), sync=True)
+        #latency = self.get_latency(self.nodes)
+        #print("My mean latency is: ", latency)
+        #self.replicated_state.set(selfAddr + "_latency", statistics.mean(latency), sync=True)
 
         ########################################
 
@@ -179,6 +182,25 @@ if __name__ == '__main__':
     replicated_state = ReplDict()
     config=SyncObjConf(appendEntriesUseBatch = False, appendEntriesBatchSizeBytes = 2**20, logCompactionBatchSize = 2**20, recvBufferSize = 2**20, sendBufferSize = 2**20)
     sync_obj = SyncObj(selfAddr, partners, consumers=[replicated_state], conf=config)
+
+    def measure_latency(nodes):
+        print(nodes)
+        while True:
+            latency=[]
+            for node in nodes:
+                print(node)
+                print("Measuring latency towards: " + node)
+                host=node.split(':')[0]
+                port=int(node.split(':')[1])
+                ping = tcpping(host, port=port, interval=1.0)
+                print("Latency towards " + node, ping.avg_rtt)
+                latency.append(ping.avg_rtt)
+            replicated_state.set(selfAddr + "_latency", statistics.mean(latency), sync=True)
+            time.sleep(10)     
+   
+    Thread(target=measure_latency, args=(partners,), daemon=True).start()
+
+    ## asyncio.run(measure_latency(partners))
     
     ##check if this is the very first launch or a re-start (i.e. num_rounds has already been defined)
     if not replicated_state.get('num_rounds', None):
@@ -228,4 +250,6 @@ if __name__ == '__main__':
     
     print(sync_obj.isReady())
     for key in replicated_state.keys():
-        print(key + " - " + str(replicated_state.get(key, None).__class__))
+        ## print(key + " - " + str(replicated_state.get(key, None).__class__))
+        if 'latency' in key:
+            print(key + " - " + str(replicated_state.get(key, None)))

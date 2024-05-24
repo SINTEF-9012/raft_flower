@@ -45,6 +45,8 @@ from pysyncobj.batteries import ReplDict
 
 import objsize
 import time
+from tcppinglib import tcpping
+import statistics
 
 ## from replicated_state import ReplicatedState
 
@@ -329,6 +331,12 @@ class LatencyAwareStrategy(Strategy):
 
         ########################################
 
+        ##latency = self.get_latency(self.nodes)
+        ##print("My mean latency is: ", latency)
+        ##self.replicated_state.set("aggregator_latency", statistics.mean(latency), sync=True)
+
+        ########################################
+
         # Aggregate custom metrics if aggregation fn was provided
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:
@@ -367,3 +375,15 @@ class LatencyAwareStrategy(Strategy):
         elif server_round == 1:  # Only log this warning once
             log(WARNING, "No evaluate_metrics_aggregation_fn provided")
         return loss_aggregated, metrics_aggregated
+    
+    # Define latency measuring function
+    def get_latency(self, nodes):
+        latency=[]
+        for node in nodes:
+            print("Measuring latency towards: " + node)
+            host=node.split(':')[0]
+            port=int(node.split(':')[1])
+            ping = tcpping(host, port=port, interval=1.0)
+            ##print(host.avg_rtt)
+            latency.append(ping.avg_rtt)
+        return latency
