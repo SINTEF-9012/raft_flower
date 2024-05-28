@@ -39,6 +39,7 @@ from flwr.server.client_proxy import ClientProxy
 
 from flwr.server.strategy.aggregate import aggregate, weighted_loss_avg
 from flwr.server.strategy import Strategy
+from flwr.server.criterion import Criterion
 
 from pysyncobj import SyncObj, SyncObjConf
 from pysyncobj.batteries import ReplDict
@@ -47,6 +48,12 @@ import objsize
 import time
 from tcppinglib import tcpping
 import statistics
+
+from colorama import Fore, Back, Style
+from colorama import init
+init(autoreset=True)
+
+from la_criterion import LatencyAwareCriterion
 
 ## from replicated_state import ReplicatedState
 
@@ -196,7 +203,7 @@ class LatencyAwareStrategy(Strategy):
 
         ########################################
 
-        i = 0
+        """ i = 0
         for tensor in parameters.tensors:
             print("evaluate_tensor" + str(i), objsize.get_deep_size(tensor))
             self.replicated_state.set("evaluate_tensor" + str(i), tensor, sync=True)
@@ -206,7 +213,7 @@ class LatencyAwareStrategy(Strategy):
         print("evaluate_tensor_length", len(parameters.tensors))
         self.replicated_state.set("evaluate_tensor_length", len(parameters.tensors), sync=True)
         print("evaluate_round", server_round)
-        self.replicated_state.set("evaluate_round", server_round, sync=True)
+        self.replicated_state.set("evaluate_round", server_round, sync=True) """
 
         ########################################
 
@@ -226,8 +233,31 @@ class LatencyAwareStrategy(Strategy):
         sample_size, min_num_clients = self.num_fit_clients(
             client_manager.num_available()
         )
+        ##################################
+        # Measuring latency for grpc clients
+
+        #for key in client_manager.all().keys():
+        #    print("Client: ", key, client_manager.all().get(key, None))
+        #    
+        #    host=key.split(':')[1]
+        #    port=int(key.split(':')[2])
+        #    ping = tcpping(host, port=port, interval=1.0)
+        #    print("Latency towards " + key, ping.avg_rtt)
+
+        #print(node)
+        #        print("Measuring latency towards: " + node)
+        #        host=node.split(':')[0]
+        #        port=int(node.split(':')[1])
+        #        ping = tcpping(host, port=port, interval=1.0)
+        #        print("Latency towards " + node, ping.avg_rtt)
+        #        latency.append(ping.avg_rtt)
+        #        replicated_state.set(selfAddr + "_" + node + "_latency", statistics.mean(latency), sync=True)
+
+
+        ##################################
+
         clients = client_manager.sample(
-            num_clients=sample_size, min_num_clients=min_num_clients
+            num_clients=sample_size, min_num_clients=min_num_clients, criterion=LatencyAwareCriterion(self.replicated_state)
         )
 
         ########################################
@@ -276,7 +306,7 @@ class LatencyAwareStrategy(Strategy):
         ########################################
 
         #TODO: uncomment this code if you also need to store and replicate the evaluation parameters
-        i = 0
+        """ i = 0
         for tensor in parameters.tensors:
             print("configure_evaluate_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
             self.replicated_state.set("configure_evaluate_tensor" + str(i), tensor, sync=True)
@@ -287,7 +317,7 @@ class LatencyAwareStrategy(Strategy):
         self.replicated_state.set("configure_evaluate_tensor_length", len(parameters.tensors), sync=True)
         #print("configure_evaluate_round", server_round)
         self.replicated_state.set("configure_evaluate_round", server_round, sync=True)
-        print("Evaluate parameters successfully saved and replicated!", "Starting next round: " + str(server_round))
+        print("Evaluate parameters successfully saved and replicated!", "Starting next round: " + str(server_round)) """
 
         ########################################
 
@@ -334,6 +364,11 @@ class LatencyAwareStrategy(Strategy):
         ##latency = self.get_latency(self.nodes)
         ##print("My mean latency is: ", latency)
         ##self.replicated_state.set("aggregator_latency", statistics.mean(latency), sync=True)
+
+        print(Fore.GREEN + "Intermediate latency measurements:")        
+        for key in self.replicated_state.keys():
+            if 'latency' in key:
+                print(Fore.GREEN + key + " - " + str(self.replicated_state.get(key, None)))
 
         ########################################
 
