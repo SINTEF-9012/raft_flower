@@ -183,14 +183,16 @@ if __name__ == '__main__':
                 host=node.split(':')[0]
                 port=int(node.split(':')[1])
                 ping = tcpping(host, port=port, interval=1.0)
-                print(Fore.GREEN + "Latency towards " + node, ping.avg_rtt)
+                print(Fore.GREEN + "Latency towards " + node, ping.avg_rtt)                
+                replicated_state.set(selfAddr + "_" + node + "_latency", ping.avg_rtt, sync=False)
                 latency.append(ping.avg_rtt)
-                replicated_state.set(selfAddr + "_" + node + "_latency", statistics.mean(latency), sync=False)
+            replicated_state.set(selfAddr + "_mean_latency", statistics.mean(latency), sync=False)
             time.sleep(10)     
    
     Thread(target=measure_latency, args=(partners,), daemon=True).start()
     
     for i in range(int(replicated_state.get('num_rounds'))):
+        print(Back.RED + "Check: " + selfAddr + " and " + replicated_state.get('aggregator'))
         if selfAddr == replicated_state.get('aggregator'):
             print(Fore.GREEN + "I am the current aggregator!")
                                 
@@ -207,23 +209,41 @@ if __name__ == '__main__':
                     
             # Start Flower server with a single training round
             fl.server.start_server(
-                server_address=aggregator,
+                server_address=replicated_state.get('aggregator'),
                 config=fl.server.ServerConfig(num_rounds=1), #(num_rounds=rounds_left),
                 strategy=strategy,
             )
-            
+
+            mean_latency = {key: value for (key, value) in replicated_state.items() if '_mean_latency' in key}        
+            #print(mean_latency)
+            mean_latency_sorted = {key: value for (key, value) in sorted(mean_latency.items(), key=lambda x: x[1])}
+            print(mean_latency_sorted)
+            node_with_lowest_latency = (list(mean_latency_sorted)[0]).split('_')[0]
+            #print(Back.RED + node_with_lowest_latency)
+            if replicated_state.get('aggregator') != node_with_lowest_latency:
+                print(Back.RED + 'We are re-assigning the aggregator!')
+                print(Back.RED + 'Current aggregator: ' + replicated_state.get('aggregator'))
+                print(Back.RED + 'New aggregator: ' + node_with_lowest_latency)
+                replicated_state.set('aggregator', node_with_lowest_latency, sync=True)
+            else:
+                print(Back.GREEN + 'The current aggregator still has the lowest average latency!')            
         else:
             ## start as a client
             print(Fore.GREEN + "I am a client!")
             try:
-                fl.client.start_numpy_client(server_address=aggregator, client=FlowerClient(replicated_state=replicated_state, nodes=partners))            
+                fl.client.start_numpy_client(server_address=replicated_state.get('aggregator'), client=FlowerClient(replicated_state=replicated_state, nodes=partners))            
             except:
                 print(Fore.RED + "Error: server disconnected. Initiating re-start...") 
-        
-        #TODO the reassignment logic goes here
+        time.sleep(2)       
+                
+        #for key in mean_latency.keys():
+            #print(key + " - " + str(mean_latency.get(key, None)))
+            #mean_latency=dict()           
+            #if '_mean_latency' in key:                
+            #    print(Fore.GREEN + key + " - " + str(replicated_state.get(key, None)))
+            #    mean_latency.append(replicated_state.get(key))
      
-    #print(sync_obj.isReady())
     for key in replicated_state.keys():
-        ## print(key + " - " + str(replicated_state.get(key, None).__class__))
+    #    ## print(key + " - " + str(replicated_state.get(key, None).__class__))
         if 'latency' in key:
             print(Fore.GREEN + key + " - " + str(replicated_state.get(key, None)))

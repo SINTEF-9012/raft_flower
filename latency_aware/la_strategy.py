@@ -176,12 +176,12 @@ class LatencyAwareStrategy(Strategy):
         if (initial_parameters):
            i = 0
            for tensor in initial_parameters.tensors:
-               print("initialize_parameters_tensor" + str(i), objsize.get_deep_size(tensor))
+               #print("initialize_parameters_tensor" + str(i), objsize.get_deep_size(tensor))
                self.replicated_state.set("initialize_parameters_tensor" + str(i), tensor, sync=True)
                i = i + 1
-           print("initialize_parameters_tensor_type", initial_parameters.tensor_type)        
+           #print("initialize_parameters_tensor_type", initial_parameters.tensor_type)        
            self.replicated_state.set("initialize_parameters_tensor_type", initial_parameters.tensor_type, sync=True)
-           print("initialize_parameters_tensor_length", len(initial_parameters.tensors))
+           #print("initialize_parameters_tensor_length", len(initial_parameters.tensors))
            self.replicated_state.set("initialize_parameters_tensor_length", len(initial_parameters.tensors), sync=True)
 
         ########################################
@@ -273,7 +273,7 @@ class LatencyAwareStrategy(Strategy):
         self.replicated_state.set("configure_fit_tensor_length", len(parameters.tensors), sync=True)
         ##print("configure_fit_round", server_round)
         self.replicated_state.set("configure_fit_round", server_round, sync=True)
-        print("Fit parameters successfully saved and replicated!", "Starting next round: " + str(server_round))
+        #print("Fit parameters successfully saved and replicated!", "Starting next round: " + str(server_round))
 
         ########################################
 
@@ -348,7 +348,7 @@ class LatencyAwareStrategy(Strategy):
 
         i = 0
         for tensor in parameters_aggregated.tensors:
-            print("aggregate_fit_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
+            #print("aggregate_fit_tensor" + str(i), objsize.get_deep_size(tensor), hash(tensor))
             self.replicated_state.set("aggregate_fit_tensor" + str(i), tensor, sync=True)
             i = i + 1        
         #print("configure_evaluate_tensor_type", parameters.tensor_type)        
@@ -357,7 +357,7 @@ class LatencyAwareStrategy(Strategy):
         self.replicated_state.set("aggregate_fit_tensor_length", len(parameters_aggregated.tensors), sync=True)
         #print("configure_evaluate_round", server_round)
         self.replicated_state.set("aggregate_fit_round", server_round, sync=True)
-        print("Evaluate parameters successfully saved and replicated!", "Starting next round: " + str(server_round))
+        #print("Evaluate parameters successfully saved and replicated!", "Starting next round: " + str(server_round))
 
         ########################################
 
@@ -415,7 +415,7 @@ class LatencyAwareStrategy(Strategy):
     def get_latency(self, nodes):
         latency=[]
         for node in nodes:
-            print("Measuring latency towards: " + node)
+            #print("Measuring latency towards: " + node)
             host=node.split(':')[0]
             port=int(node.split(':')[1])
             ping = tcpping(host, port=port, interval=1.0)
