@@ -62,7 +62,7 @@ min_fit_clients=3, min_evaluate_clients=3, min_available_clients=3
 
 ### Measuring network traffic
 
-The traffic overheads associated with the state replication can be measure using the (iftop)[https://pdw.ex-parrot.com/iftop/] utility on each of the federated nodes. For example, the following commands assume that federated nodes are inter-connected via Ethernet will measure: the native Flower traffic on port 8080, the Raft-related overheads on port 5000, and the total TCP traffic:
+The traffic overheads associated with the state replication can be measured using the (iftop)[https://pdw.ex-parrot.com/iftop/] utility on each of the federated nodes. For example, the following commands assume that federated nodes are inter-connected via Ethernet will measure: the native Flower traffic on port 8080, the Raft-related overheads on port 5000, and the total TCP traffic:
 
 ```shell
 sudo iftop -i eth0 -f "tcp port 8080"

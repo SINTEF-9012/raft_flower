@@ -138,9 +138,9 @@ def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Latency-aware node selection in Federated Learning')
-    parser.add_argument('-a','--aggr', help='Specifiy whether this node will start as the initial aggregator ("aggr") or a client (then specifiy the address of the aggregator)', required=True)
-    parser.add_argument('-r','--rounds', help='Specifiy how many training rounds are needed)', required=False)
-    parser.add_argument('-s','--self', help='Specifiy own address', required=True)
+    parser.add_argument('-a','--aggr', help='Specify whether this node will start as the initial aggregator ("aggr") or a client (then specifiy the address of the aggregator)', required=True)
+    parser.add_argument('-r','--rounds', help='Specify how many training rounds are needed)', required=False)
+    parser.add_argument('-s','--self', help='Specify own address', required=True)
     parser.add_argument('-n', '--nodes', nargs='+', default=[], help='Specify the addresses of other nodes', required=True)
     args = vars(parser.parse_args())
     
@@ -231,7 +231,8 @@ if __name__ == '__main__':
             ## start as a client
             print(Fore.GREEN + "I am a client!")
             try:
-                fl.client.start_numpy_client(server_address=replicated_state.get('aggregator'), client=FlowerClient(replicated_state=replicated_state, nodes=partners))            
+                #fl.client.start_numpy_client(server_address=replicated_state.get('aggregator'), client=FlowerClient(replicated_state=replicated_state, nodes=partners))      
+                fl.client.start_client(server_address=replicated_state.get('aggregator'),client=FlowerClient(replicated_state=replicated_state, nodes=partners).to_client())      
             except:
                 print(Fore.RED + "Error: server disconnected. Initiating re-start...") 
         time.sleep(2)       

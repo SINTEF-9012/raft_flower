@@ -257,7 +257,7 @@ class LatencyAwareStrategy(Strategy):
         ##################################
 
         clients = client_manager.sample(
-            num_clients=sample_size, min_num_clients=min_num_clients, criterion=LatencyAwareCriterion(self.replicated_state)
+            num_clients=sample_size, min_num_clients=min_num_clients
         )
 
         ########################################
