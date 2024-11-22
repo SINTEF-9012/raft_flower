@@ -2,7 +2,7 @@ from typing import List, Tuple
 
 import flwr as fl
 from flwr.common import Metrics
-from raft_strategy import RaftStrategy
+from cr_strategy import RaftStrategy
 from pysyncobj import SyncObj, SyncObjConf
 from pysyncobj.batteries import ReplDict
 import time, sys
