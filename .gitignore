@@ -2,3 +2,7 @@
 /__pycache__
 /latency_aware/data
 /latency_aware/__pycache__
+/controlled_recovery/data
+/controlled_recovery/__pycache__
+/data/cifar-10-batches-py
+/data/cifar-10-python.tar.gz

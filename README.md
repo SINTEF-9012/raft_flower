@@ -6,9 +6,9 @@ State replication can enable every node in the federated system to maintain a co
 
 The proof of concept was built on top of the Flower framework enhanced with PySyncObj used for aggregator election and state replication. Normally, Flower requires the developers to implement at least two separate Python classes - i.e., one for the server, and the other for the clients. However, in order to replace a faulty aggregator, a worker node must not only be able to recover the state, but also be equipped with the required aggregator execution logic. In other words, in our implementation all FL nodes execute exactly the same code base, and, depending on the election outcome, proceed with either the aggregator or the worker role. This logic is depicted in the two diagrams below:
 
-![Algorithm](https://github.com/SINTEF-9012/raft_flower/blob/master/img/algo.png?raw=true)
+<img src="img/algo.png" alt="Algorithm" width="200"/>
 
-![Sequence](https://github.com/SINTEF-9012/raft_flower/blob/master/img/sequence.png?raw=true)
+<img src="img/sequence.png" alt="Sequence" width="200"/>
 
 Our proof of concept extends the [quick-start tutorial](https://flower.dev/docs/framework/tutorial-quickstart-pytorch.html) on how to use Flower together with PyTorch. The experiments involve training a convolutional neural network (CNN) on the CIFAR-10 dataset – a widely recognised benchmark dataset in ML for image classification – in a federated setup. The full dataset consists of 60,000 32x32 colour images, divided into 10 classes with 6,000 images per class.
 
@@ -44,7 +44,7 @@ python main.py HOST_2:5000 HOST_1:5000 HOST_3:5000 HOST_4:5000
 ```
 Similar adjustments need to be made for HOST_3 and HOST_4. Port 5000 can be changed to any other un-occupied network port.
 
-### Configuring the number of nodes and trinaing rounds
+### Configuring the number of nodes and training rounds
 
 Change this value to increase the number of training rounds:
 

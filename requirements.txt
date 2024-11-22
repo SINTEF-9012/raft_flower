@@ -1,4 +1,4 @@
-flwr>=1.0, <2.0
+flwr==1.12
 flwr_datasets
 torch
 torchvision
@@ -6,3 +6,6 @@ tqdm
 pysyncobj
 objsize
 p2pnetwork
+colorama
+tcppinglib
+argparse
