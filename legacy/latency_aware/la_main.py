@@ -183,9 +183,10 @@ if __name__ == '__main__':
                 host=node.split(':')[0]
                 port=int(node.split(':')[1])
                 ping = tcpping(host, port=port, interval=1.0)
-                print(Fore.GREEN + "Latency towards " + node, ping.avg_rtt)                
+                print(Fore.GREEN + "Latency towards " + node, ping.avg_rtt, objsize.get_deep_size(ping.avg_rtt), "bytes")                
                 replicated_state.set(selfAddr + "_" + node + "_latency", ping.avg_rtt, sync=False)
                 latency.append(ping.avg_rtt)
+            print(Fore.GREEN + selfAddr + "_mean_latency", statistics.mean(latency), objsize.get_deep_size(statistics.mean(latency)), "bytes")
             replicated_state.set(selfAddr + "_mean_latency", statistics.mean(latency), sync=False)
             time.sleep(10)     
    

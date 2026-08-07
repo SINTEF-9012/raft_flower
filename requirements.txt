@@ -1,8 +1,0 @@
-flwr>=1.0, <2.0
-flwr_datasets
-torch
-torchvision
-tqdm
-pysyncobj
-objsize
-p2pnetwork

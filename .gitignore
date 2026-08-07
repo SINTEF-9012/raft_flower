@@ -1,4 +1,22 @@
-/data
-/__pycache__
-/latency_aware/data
-/latency_aware/__pycache__
+# Datasets (CIFAR-10 is pre-downloaded to each node, never committed)
+data/
+**/data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# Experiment output
+events-*.jsonl
+results/
+*.log
+
+# Tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

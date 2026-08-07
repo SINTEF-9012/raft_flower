@@ -1,0 +1,13 @@
+# Legacy pins for the SEAMS'24 / IFIP'24 prototypes. See README.md in this
+# directory. The original pin was `flwr>=1.0, <2.0`, which today resolves to a
+# release where start_server/start_numpy_client no longer exist.
+flwr==1.9.0
+torch==1.13.1
+torchvision==0.14.1
+tqdm
+pysyncobj
+objsize
+
+# latency_aware/ only (these were missing from the original requirements.txt)
+tcppinglib
+colorama
