@@ -1,0 +1,88 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "flnode"
+version = "2.0.0"
+description = "Controlled self-recovery of the FL aggregator using the RAFT consensus protocol"
+license = { text = "Apache-2.0" }
+readme = "README.md"
+
+# Flower 1.33 requires Python 3.11+. Note this rules out the Raspberry Pi OS
+# Bullseye images used for the article's testbed, which ship Python 3.9;
+# Bookworm (3.11) or newer is needed.
+requires-python = ">=3.11"
+
+dependencies = [
+    "flwr==1.33.0",
+    "pysyncobj==0.3.15",
+    "tcppinglib==2.0.5",
+    "torch",
+    "torchvision",
+    "numpy",
+    "objsize",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff"]
+
+[project.scripts]
+# The single entry point every node runs, regardless of the role it ends up in.
+flnode = "flnode.node:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["flnode"]
+
+# --- Flower app definition -------------------------------------------------
+
+[tool.flwr.app]
+publisher = "sintef"
+
+[tool.flwr.app.components]
+serverapp = "flnode.serverapp:app"
+clientapp = "flnode.clientapp:app"
+
+[tool.flwr.app.config]
+# Every key the supervisor may override with `flwr run --run-config` must be
+# declared here with a default -- Flower rejects overrides for unknown keys.
+num-server-rounds = 3
+local-epochs = 1
+fraction-train = 1.0
+min-nodes = 1
+# Set per run by the supervisor: the ServerApp uses these to join the RAFT
+# cluster read-only and to find its event log.
+raft-partners = ""
+raft-self = ""
+results-dir = "results"
+
+
+# --- SuperLink connection --------------------------------------------------
+#
+# As of Flower 1.26 the SuperLink connection is NOT configured here; it lives in
+# the user-level file `~/.flwr/config.toml`. This project needs one entry:
+#
+#     [superlink.flnode-local]
+#     address = "127.0.0.1:9093"
+#     insecure = true
+#
+# The address is always loopback and never changes, because the aggregator
+# submits the run to the SuperLink running on its *own* machine. Aggregator
+# handover therefore re-points only the SuperNodes (via `--superlink`), never
+# this. `experiments/setup_superlink.py` writes the entry idempotently.
+#
+# Note the name: Flower reserves `local` for its `:local:` simulation
+# pseudo-address, so a distinct name is required.
+
+# --- Tooling ---------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: spins up a real multi-process RAFT cluster (several seconds)",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
