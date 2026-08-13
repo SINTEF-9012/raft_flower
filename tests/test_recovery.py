@@ -157,6 +157,65 @@ def test_raft_leader_is_not_necessarily_the_aggregator(cluster):
     assert isinstance(leader, str) and isinstance(chosen, str)
 
 
+def test_losing_a_worker_does_not_move_the_aggregator(cluster):
+    """A worker crash is not an aggregator crash.
+
+    Losing a non-aggregator must leave the role where it is -- the federation
+    simply continues with one client fewer. Only the loss of the aggregator
+    itself triggers re-assignment. The complementary case to
+    `test_survivors_exclude_a_killed_node`.
+    """
+    observer, state, addrs, procs = cluster
+
+    aggregator = select_aggregator(read_context_table(state), now=time.time(), ttl=30.0)
+    assert aggregator is not None
+
+    # Kill a node that is NOT the aggregator.
+    victim = max(addrs, key=lambda a: int(a.rsplit(":", 1)[1]))
+    assert victim != aggregator, "test needs a non-aggregator victim"
+
+    procs[victim].kill()
+    procs[victim].wait(timeout=10)
+
+    deadline = time.time() + 20
+    while time.time() < deadline and raft.is_alive(observer, victim):
+        time.sleep(0.1)
+    assert not raft.is_alive(observer, victim), "RAFT never noticed the failure"
+
+    dead = {a for a in addrs if not raft.is_alive(observer, a)}
+    still = select_aggregator(
+        read_context_table(state), now=time.time(), ttl=30.0, exclude=dead
+    )
+    assert still == aggregator, "a worker loss must not re-assign the aggregator"
+
+
+def test_worker_loss_shrinks_the_client_threshold(cluster):
+    """After a worker dies the threshold must fall to what remains.
+
+    This is the sizing that, when fixed at launch, deadlocked a 3-node run:
+    the strategy waited for a client that no longer existed.
+    """
+    from flnode.node import effective_min_nodes
+
+    observer, state, addrs, procs = cluster
+
+    live = raft.live_members(observer)
+    assert effective_min_nodes(2, len(live)) == 2  # 3 live -> 2 workers available
+
+    victim = max(addrs, key=lambda a: int(a.rsplit(":", 1)[1]))
+    procs[victim].kill()
+    procs[victim].wait(timeout=10)
+
+    deadline = time.time() + 20
+    while time.time() < deadline and raft.is_alive(observer, victim):
+        time.sleep(0.1)
+
+    live = raft.live_members(observer)
+    assert len(live) == 2
+    # 2 live -> 1 worker -> a threshold of 2 is unsatisfiable and must clamp.
+    assert effective_min_nodes(2, len(live)) == 1
+
+
 def test_checkpoint_survives_the_loss_of_a_node(cluster):
     """State written before a failure is still readable afterwards."""
     import numpy as np
