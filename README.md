@@ -95,7 +95,7 @@ python experiments/setup_superlink.py            # once per machine
 Run a 4-node cluster locally and kill its aggregator mid-training:
 
 ```bash
-python experiments/run_cluster.py --nodes 4 --rounds 4 --min-nodes 2
+python experiments/run_cluster.py --nodes 4 --rounds 4 --connection-timeout 1.0
 ```
 
 ```bash
@@ -108,6 +108,50 @@ python experiments/collect.py --results-dir results --csv recovery.csv
 
 Training continues across the failure, resuming from the replicated
 checkpoint — rounds 2–4 are completed by a different node than round 1.
+
+Kill a *worker* instead to check the complementary case, where the aggregator
+should keep its role and the federation simply continues with one client fewer:
+
+```bash
+python experiments/kill_aggregator.py --role worker --after-round 1
+```
+
+If a run is interrupted, clear any orphaned processes before the next one —
+they hold port 9092 and make the next launch fail confusingly:
+
+```bash
+python experiments/cleanup.py
+```
+
+### Sizing the cluster
+
+Two independent limits, and mixing them up is the easiest way to get a run that
+looks hung:
+
+**How many failures the cluster survives** is set by RAFT quorum, which needs a
+majority of the *original* membership:
+
+| Nodes | Failures tolerated |
+|---|---|
+| 3 | 1 |
+| 4 | 1 |
+| 5 | 2 |
+| 11 (the article's testbed) | 5 |
+
+Past that, RAFT has no quorum, no leader can be elected, and recovery correctly
+stops rather than risking a split brain.
+
+**How many clients a round needs** is `--min-nodes`. The aggregator runs no
+SuperNode, so `N` nodes give `N-1` workers, and each failure removes one more.
+This value is therefore treated as a *desired maximum*: it is automatically
+reduced to the number of surviving workers whenever a node takes the aggregator
+role, and while a run is in progress if a worker is lost. Every reduction is
+recorded as a `min_nodes_clamped` event, so a run that trained with fewer
+clients than requested says so in its results.
+
+Pass `--strict-min-nodes` to disable that, for experiments where a varying
+client count would confound the results — accepting that the run stalls if too
+few workers remain.
 
 ### One node per host
 
@@ -211,21 +255,38 @@ Measured on a local 4-node cluster:
 | Component | Time |
 |---|---|
 | Failure **detection** | ~7 s at `connectionTimeout` 3.5 s, ~0.3 s at 1.0 s |
-| RAFT re-election | ~0.01–0.3 s |
+| Death confirmation | `--death-confirm`, 1 s by default |
+| RAFT re-election | ~0.2 s |
 | Controlled re-assignment | ~0.002 s |
 | Checkpoint restore | ~0.005 s |
 | SuperLink startup | ~5 s |
 
 The consensus machinery is not the cost. Recovery time is set by how long a
 node waits before declaring a silent partner dead, and by Flower process
-startup. Report `--connection-timeout` alongside any recovery-time result:
+startup. Report `--connection-timeout` and `--death-confirm` alongside any
+recovery-time result:
 
 ```bash
 python experiments/run_cluster.py --nodes 4 --rounds 4 --connection-timeout 1.0
 ```
 
-Lowering it scales the whole RAFT timing window together (PySyncObj
-cross-validates these), taking total recovery from ~12 s to ~5 s.
+Lowering `--connection-timeout` scales the whole RAFT timing window together
+(PySyncObj cross-validates these settings), taking total recovery from ~12 s to
+~5 s.
+
+### Why failure detection is not instantaneous
+
+Three deliberate delays, each guarding against acting on a single noisy
+reading. All are tunable, and all are additive to measured recovery time:
+
+| Flag | Default | Guards against |
+|---|---|---|
+| `--death-confirm` | 1.0 s | One missed heartbeat under load reading as a crash. Without it, a loaded host produces spurious re-assignments that look exactly like the failures they were meant to handle. |
+| `--member-grace` | 15.0 s | A late-joining node being excluded when the client threshold is first sized, which would run the whole federation with fewer clients than requested. |
+| `--ttl` | 30.0 s | A stale context record being ranked. Nodes RAFT already reports gone are excluded immediately, so this is a backstop rather than the main path. |
+
+Setting `--death-confirm 0` reacts immediately, at the cost of false positives
+on a busy machine.
 
 ---
 
@@ -277,6 +338,29 @@ published figures.
 pytest
 ```
 
-61 tests. `test_ranking.py` covers the determinism claim; `test_checkpoint.py`
-covers model serialisation and the round accounting that must survive repeated
-recovery, including one test against a real 3-node RAFT cluster.
+97 tests, several against real multi-process RAFT clusters.
+
+| File | Covers |
+|---|---|
+| `test_ranking.py` | The determinism claim (§5.4): identical rankings under 100 shuffled iteration orders, bit-identical scores, tie-breaking, staleness |
+| `test_checkpoint.py` | Model serialisation and the round accounting that must survive *repeated* recovery |
+| `test_context.py` | Unreachable peers excluded rather than scored zero; probes target neither the RAFT nor the Fleet port |
+| `test_node.py` | Client-threshold sizing, including the exact 3-node configuration that once deadlocked |
+| `test_raft.py` | Leadership reads, and that a stale leader is never accepted |
+| `test_recovery.py` | Live cluster: survivors notice a kill, agree on the same replacement, and keep the aggregator when a *worker* dies |
+
+## Supported scenarios
+
+| Scenario | Status |
+|---|---|
+| Cold start; deterministic role assignment | verified |
+| Aggregator crash → re-elect → resume from checkpoint | verified live |
+| RAFT leader ≠ FL aggregator | verified live |
+| Worker crash → federation continues, role unchanged | verified live |
+| Chained aggregator failures | supported within quorum |
+| Proactive re-assignment (§8.1) | implemented, not live-validated (`--reassign every-round`) |
+| Multi-criteria ranking (§8.3) | implemented, unit-tested, not CLI-wired |
+| Nodes joining at runtime | not implemented |
+| Survives a whole-cluster restart | not supported, by design (state is in memory; SEAMS §6.2.1) |
+| Latency-aware *client* selection (IFIP §II-A) | not implemented |
+| CIFAR-10 partitioning (§7.1) | not implemented |
