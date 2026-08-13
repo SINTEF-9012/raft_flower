@@ -72,8 +72,15 @@ def kill_tree(pid: int, timeout: float = 10.0) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Kill the current FL aggregator")
+    parser = argparse.ArgumentParser(description="Kill a node in a running cluster")
     parser.add_argument("--results-dir", default="results")
+    parser.add_argument(
+        "--role", choices=["aggregator", "worker"], default="aggregator",
+        help="Which node to kill. 'aggregator' triggers the self-recovery flow; "
+             "'worker' checks the complementary case, where the federation "
+             "should simply continue with one client fewer and the aggregator "
+             "should keep its role.",
+    )
     parser.add_argument(
         "--after-round", type=int, default=None,
         help="Wait until this many rounds have completed before killing.",
@@ -112,18 +119,34 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         aggregator = get_aggregator(state)
-        pid = pids.get(aggregator)
+
+        if args.role == "aggregator":
+            target = aggregator
+        else:
+            # Any live node that is not the aggregator. Sorted so repeated runs
+            # pick the same victim and stay comparable.
+            live = raft.live_members(sync_obj)
+            candidates = sorted(n for n in pids if n != aggregator and n in live)
+            if not candidates:
+                print(f"No worker to kill (aggregator is {aggregator})")
+                return 1
+            target = candidates[0]
+
+        pid = pids.get(target)
         if pid is None:
-            print(f"Aggregator {aggregator} is not in the cluster map")
+            print(f"{args.role} {target} is not in the cluster map")
             return 1
 
         print(
-            f"Killing aggregator {aggregator} (pid {pid}) "
+            f"Killing {args.role} {target} (pid {pid}) "
             f"after {completed_rounds(state)} completed round(s)"
+            + ("" if args.role == "aggregator" else f"; aggregator is {aggregator}")
         )
         ok = kill_tree(pid)
         print("killed" if ok else "kill failed (already gone?)")
         return 0 if ok else 1
+    except KeyboardInterrupt:
+        return 130
     finally:
         try:
             sync_obj.destroy()

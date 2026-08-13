@@ -74,6 +74,21 @@ def main(argv: list[str] | None = None) -> int:
     # one aggregator failure. Requiring more than that would stall recovery.
     min_nodes = args.min_nodes if args.min_nodes is not None else max(1, args.nodes - 2)
 
+    # N nodes give N-1 workers, and one aggregator failure leaves N-2. Nodes
+    # clamp the threshold down at run time so this no longer stalls, but an
+    # explicit value that can never be met is still worth flagging: it means
+    # the run will silently train with fewer clients than asked for.
+    if args.min_nodes is not None and args.min_nodes > args.nodes - 2:
+        survivable = max(0, args.nodes - 1 - args.min_nodes)
+        print(
+            f"NOTE: --min-nodes {args.min_nodes} with {args.nodes} nodes tolerates "
+            f"{survivable} aggregator failure(s) at full client count.\n"
+            f"      Nodes will reduce the threshold automatically after that "
+            f"(min_nodes_clamped events); pass --strict-min-nodes to a node to "
+            f"disable clamping.\n",
+            flush=True,
+        )
+
     results = REPO / args.results_dir
     results.mkdir(parents=True, exist_ok=True)
     for stale in results.glob("events-*.jsonl"):
