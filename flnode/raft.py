@@ -151,22 +151,39 @@ def has_quorum(sync_obj: SyncObj) -> bool:
 
 
 def wait_for_leader(
-    sync_obj: SyncObj, timeout: float = 30.0, poll: float = 0.05
+    sync_obj: SyncObj,
+    timeout: float = 30.0,
+    poll: float = 0.05,
+    self_addr: str | None = None,
 ) -> str | None:
-    """Block until RAFT has settled on a leader. Returns its address.
+    """Block until RAFT has settled on a *live* leader. Returns its address.
 
     This is the article's intermediate recovery phase (Section 5.3): after the
     aggregator dies, the cluster first re-elects a RAFT leader "aiming to
     quickly restore the system to a stable state rather than resume active FL
     operations", and only then ranks nodes for the aggregator role.
 
-    Polled finely because the interval this measures is reported directly as
-    the RAFT re-election time in Figure 6.
+    The liveness check is the point. For a short window after a leader dies,
+    pysyncobj still reports it as the leader, and quorum can still hold among
+    the survivors. Returning on the first non-`None` answer therefore returns
+    *before* the election has actually happened, naming a node that is already
+    gone -- observed in a 3-node run, which recorded
+    `raft_leader_elected {leader: 'localhost:5000'}` alongside
+    `live_members: ['localhost:5001', 'localhost:5002']`.
+
+    Beyond being wrong, that shortens the interval this function measures, and
+    that interval is reported directly as the RAFT re-election time in Figure
+    6. Requiring the leader to appear in the live set makes the measurement
+    honest. Polled finely for the same reason.
     """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         leader = leader_of(sync_obj)
-        if leader is not None and has_quorum(sync_obj):
+        if (
+            leader is not None
+            and has_quorum(sync_obj)
+            and leader in live_members(sync_obj, self_addr)
+        ):
             return leader
         time.sleep(poll)
     return leader_of(sync_obj)

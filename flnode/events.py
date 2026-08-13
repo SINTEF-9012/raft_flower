@@ -59,6 +59,10 @@ NODE_STARTED = "node_started"
 NODE_STOPPING = "node_stopping"
 CHILD_SPAWNED = "child_spawned"
 CHILD_EXITED = "child_exited"
+#: The configured client threshold exceeded the surviving worker count and was
+#: reduced. Recorded so a run that trained with fewer clients than requested
+#: says so in its results instead of changing silently.
+MIN_NODES_CLAMPED = "min_nodes_clamped"
 
 
 class EventLog:

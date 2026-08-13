@@ -52,11 +52,13 @@ from typing import Any
 
 from flnode import raft
 from flnode.checkpoint import (
+    bump_run_generation,
     completed_rounds,
     get_aggregator,
     is_training_complete,
     num_rounds,
     remaining_rounds,
+    run_generation,
     set_aggregator,
     set_num_rounds,
 )
@@ -73,6 +75,7 @@ from flnode.events import (
     AGGREGATOR_SERVING,
     CHILD_EXITED,
     CHILD_SPAWNED,
+    MIN_NODES_CLAMPED,
     NODE_STARTED,
     NODE_STOPPING,
     RAFT_LEADER_ELECTED,
@@ -170,6 +173,33 @@ def resolve_binary(name: str) -> str:
     )
 
 
+def effective_min_nodes(
+    configured: int, live_members: int, *, strict: bool = False
+) -> int:
+    """Clamp the strategy's client threshold to the workers that actually exist.
+
+    The article's recovery guarantee holds "as long as ... a sufficient number
+    of worker nodes remain operational" (Section 7.1.1). A threshold fixed
+    before the failure cannot express that: with 3 nodes and
+    `min_train_nodes=2`, losing the aggregator leaves exactly one worker
+    against a requirement of two, and the run waits forever for a node that no
+    longer exists -- the failure looks like a hang rather than a
+    misconfiguration.
+
+    The aggregator itself runs no SuperNode, so `live_members - 1` is the
+    number of workers available to it. Never returns less than 1, because
+    federated training needs at least one client.
+
+    `strict=True` keeps the configured value regardless, for experiments that
+    need the client count pinned across a failure and would rather see the run
+    stall than silently train with fewer clients.
+    """
+    if strict:
+        return max(1, configured)
+    workers = max(1, live_members - 1)
+    return max(1, min(configured, workers))
+
+
 def port_is_open(host: str, port: int, timeout: float = 0.5) -> bool:
     try:
         with socket.create_connection((host, port), timeout=timeout):
@@ -200,6 +230,9 @@ class Supervisor:
         self.margin: float = args.margin
         self.local_epochs: int = args.local_epochs
         self.min_nodes: int = args.min_nodes
+        self.strict_min_nodes: bool = args.strict_min_nodes
+        self.death_confirm: float = args.death_confirm
+        self.member_grace: float = args.member_grace
         self.reassign_every_round: bool = args.reassign == "every-round"
         host, raft_port = self.self_addr.rsplit(":", 1)
         self.ports = Ports(host=host, fleet=args.fl_port, raft_port=int(raft_port))
@@ -275,6 +308,21 @@ class Supervisor:
         # nodes see different subsets, reach different answers, and both claim
         # the aggregator role.
         self.wait_for_context(timeout=60.0)
+
+    def wait_for_members(self, timeout: float) -> bool:
+        """Block until every configured node is RAFT-reachable, or give up.
+
+        Returns True if the full cluster is present. Returning False is normal
+        and expected after a real failure: the dead node will never come back,
+        so the caller proceeds with whoever is there.
+        """
+        expected = {self.self_addr, *self.partners}
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline and not self._shutdown.is_set():
+            if raft.live_members(self.sync_obj, self.self_addr) >= expected:
+                return True
+            time.sleep(0.2)
+        return raft.live_members(self.sync_obj, self.self_addr) >= expected
 
     def wait_for_context(self, timeout: float) -> bool:
         """Block until every cluster member has published a context record."""
@@ -467,6 +515,34 @@ class Supervisor:
 
         return role, chosen
 
+    def confirm_dead(self, node: str, poll: float = 0.1) -> bool:
+        """Is `node` still absent after watching it for `self.death_confirm`?
+
+        A failure detector built on one sample cannot distinguish a crash from
+        a scheduling hiccup. This requires the node to stay unreachable for the
+        whole confirmation window, and returns `False` the moment it reappears.
+
+        The cost is that the window is added to every recovery, so it is kept
+        short and is reported in the event log; the benefit is that transient
+        load does not trigger a spurious re-assignment. It should be at least
+        one RAFT heartbeat interval.
+        """
+        if self.death_confirm <= 0:
+            return True
+        deadline = time.monotonic() + self.death_confirm
+        while time.monotonic() < deadline:
+            if self._shutdown.is_set():
+                return False
+            if raft.is_alive(self.sync_obj, node, self.self_addr):
+                self.log.emit(
+                    "liveness_recovered",
+                    node=node,
+                    note="transient disconnect, not a failure",
+                )
+                return False
+            time.sleep(poll)
+        return not raft.is_alive(self.sync_obj, node, self.self_addr)
+
     def _is_live(self, node: str, table: dict, now: float) -> bool:
         """Is `node` both RAFT-reachable and still publishing fresh context?
 
@@ -496,8 +572,12 @@ class Supervisor:
         self.kill_children()
 
         # Phase (ii): let RAFT settle before ranking, so every node ranks
-        # against a consistent replicated state.
-        leader = raft.wait_for_leader(self.sync_obj, timeout=60.0)
+        # against a consistent replicated state. self_addr is required so that
+        # a node which is itself the new leader counts as live, and so that a
+        # stale report naming the node that just died is not accepted.
+        leader = raft.wait_for_leader(
+            self.sync_obj, timeout=60.0, self_addr=self.self_addr
+        )
         self.log.emit(
             RAFT_LEADER_ELECTED,
             leader=leader,
@@ -525,11 +605,42 @@ class Supervisor:
             raise RuntimeError("SuperLink control API did not come up")
 
         remaining = remaining_rounds(self.state)
+
+        # Give slow peers a moment to appear before sizing the federation, but
+        # only at cold start. RAFT connections are still being established in
+        # the first seconds after launch, so reading membership immediately can
+        # miss a node that is merely late, and the threshold would then be set
+        # too low for the whole run.
+        #
+        # On the recovery path this must be skipped. The missing node is known
+        # dead -- its absence was just confirmed over `--death-confirm` -- so
+        # waiting for it to reappear only adds the full grace period to every
+        # recovery, which is the headline metric. A non-zero run generation
+        # means a run has already started, i.e. membership is known.
+        if run_generation(self.state) == 0:
+            self.wait_for_members(timeout=self.member_grace)
+
+        # Size the client threshold to the cluster that actually exists now,
+        # not to the one that existed at launch. Recomputed every time this
+        # node takes the role, so each recovery adapts to the survivors.
+        live = raft.live_members(self.sync_obj, self.self_addr)
+        min_nodes = effective_min_nodes(
+            self.min_nodes, len(live), strict=self.strict_min_nodes
+        )
+        if min_nodes != self.min_nodes:
+            self.log.emit(
+                MIN_NODES_CLAMPED,
+                configured=self.min_nodes,
+                effective=min_nodes,
+                live_members=sorted(live),
+            )
+
         self.log.emit(
             AGGREGATOR_SERVING,
             rounds=remaining,
             resumed_from_round=completed_rounds(self.state),
             fleet_port=self.ports.fleet,
+            min_nodes=min_nodes,
         )
 
         run_config = " ".join(
@@ -537,10 +648,16 @@ class Supervisor:
                 f'raft-partners="{",".join([self.self_addr, *self.partners])}"',
                 f'raft-self="{self.self_addr}"',
                 f'results-dir="{self.results_dir}"',
-                f"min-nodes={self.min_nodes}",
+                f"min-nodes={min_nodes}",
                 f"local-epochs={self.local_epochs}",
             ]
         )
+        # Tell the workers a new run is starting, so they relaunch their
+        # SuperNodes against this SuperLink. Done before the run is submitted
+        # so nobody attaches to the previous generation.
+        generation = bump_run_generation(self.state)
+        self.log.emit("run_generation", generation=generation, min_nodes=min_nodes)
+
         run = self.spawn(
             [
                 "flwr", "run", self.app_dir, self.federation,
@@ -555,9 +672,46 @@ class Supervisor:
 
         # Block until the run finishes. A crash of this node kills the whole
         # process group, which is what the failure injection exercises.
+        low_since: float | None = None
         while run.poll() is None and not self._shutdown.is_set():
             if self.reassign_every_round and self._better_aggregator_exists():
                 break
+
+            # A worker can die *during* a run, and Flower fixes the client
+            # threshold for the lifetime of a run -- so the strategy would go
+            # on waiting for a node that no longer exists. Clamping only at
+            # role-assumption time covers aggregator failure but not this.
+            # Restarting the run is what applies the lower threshold; progress
+            # is not lost, because the new run resumes from the last replicated
+            # checkpoint. The in-flight round's client work is discarded, which
+            # is the same limitation the article notes in Section 8.2.
+            if not self.strict_min_nodes:
+                current = effective_min_nodes(
+                    self.min_nodes,
+                    len(raft.live_members(self.sync_obj, self.self_addr)),
+                )
+                if current < min_nodes:
+                    # Require the drop to persist, for the same reason the
+                    # liveness check does: membership read at one instant can
+                    # dip under load, and each spurious dip would restart a
+                    # perfectly healthy run, losing the round in flight and
+                    # inflating any measured overhead.
+                    if low_since is None:
+                        low_since = time.monotonic()
+                    elif time.monotonic() - low_since >= self.death_confirm:
+                        self.log.emit(
+                            MIN_NODES_CLAMPED,
+                            configured=min_nodes,
+                            effective=current,
+                            reason="worker lost mid-run; restarting to apply it",
+                            live_members=sorted(
+                                raft.live_members(self.sync_obj, self.self_addr)
+                            ),
+                        )
+                        break
+                else:
+                    low_since = None
+
             time.sleep(0.5)
 
         self.kill_children()
@@ -588,7 +742,11 @@ class Supervisor:
         if not isinstance(fleet, int):
             fleet = self.ports.fleet
 
-        self.spawn(
+        # Captured before spawning: if the aggregator starts a newer run while
+        # this SuperNode is attaching, the mismatch is caught on the next poll.
+        generation = run_generation(self.state)
+
+        supernode = self.spawn(
             [
                 "flower-supernode",
                 "--insecure",
@@ -599,7 +757,12 @@ class Supervisor:
             ],
             "supernode",
         )
-        self.log.emit(WORKER_SERVING, aggregator=aggregator, fleet_port=fleet)
+        self.log.emit(
+            WORKER_SERVING,
+            aggregator=aggregator,
+            fleet_port=fleet,
+            generation=generation,
+        )
 
         # This is the check Section 6.2 requires of every worker. It reads the
         # partner state RAFT already maintains from its heartbeats, so it costs
@@ -608,9 +771,45 @@ class Supervisor:
         while not self._shutdown.is_set():
             if is_training_complete(self.state):
                 return
+
             if not raft.is_alive(self.sync_obj, aggregator, self.self_addr):
-                self.recover(failed=aggregator)
+                # Confirm before acting. A single negative reading is not
+                # evidence of death: under load, one missed heartbeat window
+                # is enough for pysyncobj to mark a perfectly healthy partner
+                # disconnected, and tearing the SuperNode down on that alone
+                # produces churn that looks exactly like the failure it was
+                # meant to handle.
+                if self.confirm_dead(aggregator):
+                    self.recover(failed=aggregator)
+                    return
+
+            # The aggregator replaced its run, so this SuperNode is attached to
+            # a SuperLink that no longer exists. The aggregator never looked
+            # unhealthy, so the liveness check above cannot catch this.
+            current = run_generation(self.state)
+            if current != generation:
+                self.log.emit(
+                    "run_generation_changed",
+                    was=generation,
+                    now=current,
+                    note="relaunching SuperNode against the new run",
+                )
+                self.kill_children()
                 return
+
+            # Safety net: a SuperNode that died for any other reason must be
+            # replaced, or this node silently stops participating while still
+            # looking healthy to everyone else.
+            if supernode.poll() is not None:
+                self.log.emit(
+                    CHILD_EXITED,
+                    pid=supernode.pid,
+                    returncode=supernode.returncode,
+                    note="SuperNode exited unexpectedly; relaunching",
+                )
+                self.kill_children()
+                return
+
             time.sleep(0.2)
 
     def _partition_id(self) -> int:
@@ -719,6 +918,22 @@ def build_parser() -> argparse.ArgumentParser:
              "recovery-time result.",
     )
     parser.add_argument(
+        "--member-grace", type=float, default=15.0,
+        help="Seconds to wait for every configured node to become reachable "
+             "before sizing the client threshold (default: %(default)s). "
+             "Prevents a late-joining node from being excluded at startup, "
+             "which would run the whole federation with fewer clients than "
+             "requested. After a genuine failure this simply times out.",
+    )
+    parser.add_argument(
+        "--death-confirm", type=float, default=1.0,
+        help="Seconds a node must stay unreachable before it is declared "
+             "failed (default: %(default)s). Guards against acting on a single "
+             "missed heartbeat, which under load produces spurious "
+             "re-assignment. Adds to measured recovery time, so report it "
+             "alongside recovery results. Set 0 to react immediately.",
+    )
+    parser.add_argument(
         "--election-min", type=float, default=None,
         help="RAFT randomised election timeout, lower bound (default 0.4).",
     )
@@ -730,7 +945,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--federation", default="flnode-local")
     parser.add_argument("--results-dir", default="results")
     parser.add_argument("--local-epochs", type=int, default=1)
-    parser.add_argument("--min-nodes", type=int, default=1)
+    parser.add_argument(
+        "--min-nodes", type=int, default=1,
+        help="Desired number of clients per round. Treated as a maximum: it is "
+             "automatically reduced to the number of surviving workers each "
+             "time a node takes the aggregator role, so losing a node shrinks "
+             "the federation instead of stalling it. A min_nodes_clamped event "
+             "records any reduction.",
+    )
+    parser.add_argument(
+        "--strict-min-nodes", action="store_true",
+        help="Never reduce --min-nodes. Keeps the client count pinned across a "
+             "failure, at the cost of stalling if too few workers remain. For "
+             "experiments where a varying client count would confound results.",
+    )
     return parser
 
 

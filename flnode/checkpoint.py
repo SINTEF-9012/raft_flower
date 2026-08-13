@@ -50,6 +50,15 @@ KEY_NUM_ROUNDS = "fl:num_rounds"
 KEY_AGGREGATOR = "fl:aggregator"
 #: The checkpoint itself: a single dict, committed as one RAFT log entry.
 KEY_CHECKPOINT = "ckpt:latest"
+#: Incremented every time an aggregator starts a Flower run.
+#:
+#: A SuperNode is bound to the SuperLink it was launched against. When the
+#: aggregator restarts its run -- to apply a reduced client threshold, or after
+#: taking over from a failed peer -- the old SuperLink goes away and the
+#: workers' SuperNodes die with it, without the aggregator itself ever having
+#: looked unhealthy. Workers therefore cannot detect this by watching
+#: aggregator liveness; they watch this counter instead and relaunch.
+KEY_RUN_GENERATION = "fl:run_generation"
 
 
 class ReplicatedState(Protocol):
@@ -275,3 +284,30 @@ def set_aggregator(state: ReplicatedState, node: str, *, sync: bool = True) -> b
 def get_aggregator(state: ReplicatedState) -> str | None:
     value = state.get(KEY_AGGREGATOR, None)
     return value if isinstance(value, str) else None
+
+
+# --- Run generation --------------------------------------------------------
+
+
+def run_generation(state: ReplicatedState) -> int:
+    value = state.get(KEY_RUN_GENERATION, 0)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def bump_run_generation(state: ReplicatedState) -> int:
+    """Announce a new Flower run. Returns the new generation.
+
+    Best-effort like `set_aggregator`: this is written while the cluster may
+    still be settling after a failure, and a refused write must not take the
+    incoming aggregator down. A missed bump only costs the workers a delayed
+    relaunch, which their child-exit watchdog also covers.
+    """
+    generation = run_generation(state) + 1
+    try:
+        state.set(KEY_RUN_GENERATION, generation, sync=True)
+    except Exception:
+        return run_generation(state)
+    return generation
