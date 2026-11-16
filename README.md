@@ -1,6 +1,10 @@
-# Controlled Self-Recovery of the FL Aggregator using RAFT
+# FLORET
 
-Reference implementation for:
+**Federated Learning Orchestration with Resilient Election and Takeover** —
+controlled self-recovery of the Flower aggregator using the RAFT consensus
+protocol.
+
+FLORET is the reference implementation for:
 
 > Rustem Dautov and Erik Johannes Husom. *Controlled Self-Recovery of the
 > Aggregator in Federated Learning Using RAFT Protocol.* ACM Transactions on
@@ -17,6 +21,10 @@ suitable one resumes training from the last replicated checkpoint. That is
 one.
 
 Built on **Flower 1.33** and **PySyncObj 0.3.15**.
+
+> **Naming.** FLORET is the project name. The Python package, the module every
+> node runs (`python -m flnode.node`) and the `flnode` command keep their
+> original name, so existing imports, scripts and commands keep working.
 
 > The earlier prototypes described in the SEAMS'24 and IFIP Networking'24
 > papers are preserved unchanged in [`legacy/`](legacy/), together with a note
@@ -364,3 +372,7 @@ pytest
 | Survives a whole-cluster restart | not supported, by design (state is in memory; SEAMS §6.2.1) |
 | Latency-aware *client* selection (IFIP §II-A) | not implemented |
 | CIFAR-10 partitioning (§7.1) | not implemented |
+
+## License
+
+FLORET is released under the [MIT License](LICENSE).

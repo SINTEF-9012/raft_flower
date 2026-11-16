@@ -3,10 +3,11 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "flnode"
+name = "floret"
 version = "2.0.0"
-description = "Controlled self-recovery of the FL aggregator using the RAFT consensus protocol"
-license = { text = "Apache-2.0" }
+description = "FLORET (Federated Learning Orchestration with Resilient Election and Takeover): controlled self-recovery of the Flower aggregator using RAFT"
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 
 # Flower 1.33 requires Python 3.11+. Note this rules out the Raspberry Pi OS
